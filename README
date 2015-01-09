@@ -1,0 +1,182 @@
+UNI: dr2763
+
+
+
+(1) Program description
+
+The program is written in Java, including multi-thread, UDP communication, timer, Hashmap.
+
+It contains the following 6 classes.
+
+1. bfclient - the main class for the program whose functions are creating the vectors and socket, waiting for UDP
+    packet and running the DV algorithm
+
+2. CommandThread - the command thread waits for the user input and act accordingly
+
+3. SenderThread - the sender thread sends packet to other clients.
+
+4. content - implement the structure of the packet
+
+5. distance - record the information of a reachable client
+
+6. neighbor - record the information of a neighbor
+
+
+
+
+
+------------------------------------------------------------------------------------------------------
+(2) How to invoke the program
+
+>java bfclient 4115 3 127.0.0.1 4116 5.0 127.0.0.1 4118 30.0
+
+>java bfclient 4116 5 127.0.0.1 4115 5.0 127.0.0.1 4117 10.0 127.0.0.1 4118 5.0
+
+>java bfclient 4117 5 127.0.0.1 4116 10.0
+
+>java bfclient 4118 3 127.0.0.1 4115 30.0 127.0.0.1 4116 5.0
+
+
+
+
+
+------------------------------------------------------------------------------------------------------
+(3) Program features
+
+The programs implemented the basic features required, e.g. SHOWRT, LINKDOWN, LINKUP, CLOSE. And all the required
+features work well. In addition, the proper error message is shown when the there's any unexpected behavior. For
+example, "the input is invalid" and "invalid command", etc..
+
+Besides, it also contains 5 additional useful features which will be explained in the part (5).
+
+
+
+
+
+------------------------------------------------------------------------------------------------------
+(4) Transmission protocol
+
+The packet is designed as follow:
+
+| message type | source port |    cost    | destination IP | distance vector |
+|   short: 2B  |   int: 4B   | float: 4B  |  String: 15B   |      46*n B     |
+
+
+The distance vector mentioned above is stored as follow:
+| destination1(IP:port) |   cost1   | firstHop1(IP:port) | destination2(IP:port) |   cost2   | firstHop2(IP:port) | ...
+|     String: 21B       | float: 4B |     String: 21B    |     String: 21B       | float: 4B |     String: 21B    | ...
+
+Here are more details of how each field is used:
+
+1. message type: We use this number to distinguish different type of message.If type=1, it means it is a ROUTE
+    UPDATE message. In addition, 2 stands for LINKDOWN message, 3 stands for LINKUP message and 4 stands for
+    NEWCOST message(for additional feature).
+
+2. source port: Since the receiver can get the source IP from the packet, we need to add the source port number
+    of the source so that the receiver can identify the sender.
+
+3. cost: It is useful if a new node is added and it will send update message to its neighbors. Then the neighbors
+    can know the cost of the path between them. And it is used in one of the additional features I implemented. In
+    that feature, we can update the cost of the edge and send the information to the corresponding neighbor.
+
+4: destination IP: Since an IP has at most 15 characters including the dot, we can present it using a string of
+    length 15 (spaces are left if we use less than 15 characters).
+
+5. distance vector: Since the IP address(V4) cannot be longer than 15 characters and port number cannot be longer
+    than 5 characters, we can use 21 bytes of String to store an address in the following format: "IP:port", for
+    example, 127.0.0.1:4116. Then each element in the distance vector can be represented by 46 bytes, including 21
+    bytes of destination address (IP:port), 4 bytes of cost, 21 bytes of first hop address(IP:port).
+
+
+
+
+
+------------------------------------------------------------------------------------------------------
+(5)Additional features
+
+1. Show Neighbor list
+
+It shows the neighbors of current client, indicating the address of the neighbor, the cost of the edge between them
+and the time of the last update received from this neighbor. It is useful in helping user know about current network
+structure when new node or link is adding to the network or old node is leaving the network.
+
+For example:
+>SHOWNB
+
+Time: 03:54:20   Neighbor list is:
+Address = 127.0.0.1:4117, Cost = 3.0, last Update = 03:54:17
+Address = 127.0.0.1:4118, Cost = 2.0, last Update = 03:54:15
+
+
+
+2. Update cost for existing edge
+
+With the NEWCOST command, we can change the cost of an existing edge. After the cost is changed, we use Poisoned
+Reverse method so that it converges very quickly. In the meantime, we send a NEWCOST message to the corresponding
+neighbor. In fact, it takes a lot of effort to modify the basic algorithm and handle different cases.
+
+Command:
+>NEWCOST <IP> <port number> <cost>
+
+For example,
+>NEWCOST 10.2.116.56 4115 6.0
+
+
+
+3. Solve the count to infinity problem
+
+Solve this problem by using the Poisened Reverse method described in the textbook.  
+
+
+For example,
+>LINKDOWN 127.0.0.1 4115
+>LINKUP 127.0.0.1 4115
+
+
+
+4. Add new link between existing clients
+
+Although the dynamic adding client is supported, it's difficult to add new links between existing clients if there's no
+link established when they are created. The NEWLINK command will allow user to connect two existing clients that are
+not connected at the time of beginning. And the algorithm should behave accordingly when the new link is established.
+
+Command:
+>NEWLINK <IP> <port number> <cost>
+
+For example,
+>NEWLINK 127.0.0.1 4115 6.0
+
+
+
+5. Assign different timeout value
+
+With command TIMEOUT, we can change the timeout value. It's useful when the property for a client has changed and we
+want to send out ROUTE UPDATE more frequently. When the network becomes stable, we want to increment the timeout value
+so that the ROUTE UPDATE is sent less frequently and resources can be used to do other more meaningful work.
+
+Command:
+>TIMEOUT <cost>
+
+For example:
+>TIMEOUT 10.0
+
+
+
+6. Support using 127.0.0.1 and localhost
+
+Besides using actual IP address, we also support using 127.0.0.1 or localhost as neighbor IP when invoking the client.
+This is more convenient for user.
+
+For example:
+>java bfclient 4115 3 localhost 4116 5.0 127.0.0.1 4118 30.0
+
+
+
+7. Handle ctrl+c and exit gracefully
+
+When user forces to quit the program, the sockets will be closed and the threads will be destroyed. And the following
+message will be displayed:
+
+The client is closing...
+
+
