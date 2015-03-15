@@ -1,3 +1,0 @@
-SimpleDistributedBellman_Ford
-=============================
- 
